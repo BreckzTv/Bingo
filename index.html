@@ -1,726 +1,418 @@
 <!DOCTYPE html>
-<html lang="de" class="h-full bg-slate-950 text-slate-100 select-none">
+<html lang="de">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Retro Bingo Arcade</title>
+  <title>Bingo Arcade - Multiplayer & Solo</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Fredoka', 'sans-serif'],
-            arcade: ['"Press Start 2P"', 'cursive'],
-          },
-          colors: {
-            bingo: {
-              b: '#ef4444',
-              i: '#f59e0b',
-              n: '#10b981',
-              g: '#3b82f6',
-              o: '#8b5cf6'
-            }
-          }
-        }
-      }
-    }
-  </script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <style>
-    /* Custom Dauber & Animations */
-    .daubed {
-      position: relative;
-      background: radial-gradient(circle, rgba(244,63,94,0.85) 0%, rgba(190,18,60,0.95) 70%) !important;
-      color: #ffffff !important;
-      border-color: #f43f5e !important;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-      animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap');
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
+      min-height: 100vh;
     }
-    .daubed::after {
-      content: '';
-      position: absolute;
-      inset: 4px;
-      border: 2px dashed rgba(255, 255, 255, 0.5);
-      border-radius: 9999px;
-      pointer-events: none;
+
+    .font-game { font-family: 'Fredoka One', cursive; }
+
+    .bingo-card-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 0.5rem;
     }
+
+    .tile-daubed {
+      background: radial-gradient(circle, #ef4444 0%, #dc2626 100%) !important;
+      color: white !important;
+      transform: scale(0.95);
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+      animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .tile-winning {
+      background: radial-gradient(circle, #eab308 0%, #ca8a04 100%) !important;
+      animation: pulseWin 0.8s infinite alternate;
+    }
+
     @keyframes popIn {
-      0% { transform: scale(0.6); opacity: 0; }
-      100% { transform: scale(1); opacity: 1; }
+      0% { transform: scale(0.5); opacity: 0; }
+      100% { transform: scale(0.95); opacity: 1; }
     }
-    @keyframes ballSpin {
-      0% { transform: rotate(0deg) scale(0.5); opacity: 0; }
-      50% { transform: rotate(180deg) scale(1.1); }
-      100% { transform: rotate(360deg) scale(1); opacity: 1; }
+
+    @keyframes pulseWin {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.7); }
+      100% { transform: scale(1.02); box-shadow: 0 0 15px 5px rgba(234, 179, 8, 0.9); }
     }
-    .ball-animate {
-      animation: ballSpin 0.4s ease-out forwards;
+
+    .ball-drawn {
+      animation: ballPop 0.4s ease-out;
     }
-    .glass-panel {
-      background: rgba(15, 23, 42, 0.75);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+
+    @keyframes ballPop {
+      0% { transform: scale(0) rotate(-180deg); }
+      80% { transform: scale(1.1) rotate(10deg); }
+      100% { transform: scale(1) rotate(0deg); }
     }
   </style>
 </head>
-<body class="h-full flex flex-col justify-between overflow-x-hidden font-sans bg-slate-950 text-slate-100">
+<body class="text-white flex flex-col justify-between p-4 md:p-6">
 
-  <!-- TOP HEADER HUD -->
-  <header class="w-full bg-slate-900/90 border-b border-slate-800 p-3 sticky top-0 z-30 backdrop-blur-md shadow-lg">
-    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-      
-      <!-- Logo -->
-      <div class="flex items-center space-x-2">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-500 to-indigo-600 flex items-center justify-center text-xl font-bold shadow-lg shadow-rose-500/20 font-arcade">
-          🎱
-        </div>
+  <!-- Header -->
+  <header class="max-w-5xl mx-auto w-full flex flex-wrap justify-between items-center gap-4 bg-slate-900/80 backdrop-blur border border-indigo-500/30 p-4 rounded-2xl shadow-xl">
+    <div class="flex items-center gap-3">
+      <div class="w-12 h-12 bg-gradient-to-tr from-yellow-400 to-amber-500 rounded-xl flex items-center justify-center text-slate-950 font-game text-2xl shadow-lg shadow-amber-500/20">
+        B
+      </div>
+      <div>
+        <h1 class="font-game text-2xl tracking-wide text-amber-400">BINGO ARCADE</h1>
+        <p class="text-xs text-indigo-200" id="mode-indicator"><i class="fa-solid fa-user mr-1"></i> Solo Modus</p>
+      </div>
+    </div>
+
+    <!-- User Profile & Stats -->
+    <div class="flex items-center gap-4">
+      <div class="bg-indigo-950/80 px-4 py-2 rounded-xl border border-indigo-700/50 flex items-center gap-3">
+        <i class="fa-solid fa-circle-user text-2xl text-amber-400"></i>
         <div>
-          <h1 class="text-xl font-bold tracking-wide bg-gradient-to-r from-rose-400 via-amber-300 to-indigo-400 bg-clip-text text-transparent">
-            RETRO BINGO ARCADE
-          </h1>
-          <p class="text-[11px] text-slate-400">Classic 75-Ball Casino Edition</p>
+          <div class="text-xs text-indigo-300">Spieler</div>
+          <div class="font-bold text-sm text-white" id="display-username">Spieler</div>
         </div>
       </div>
-
-      <!-- Stats Bar -->
-      <div class="flex items-center gap-4 text-xs font-semibold bg-slate-950/60 border border-slate-800 px-4 py-2 rounded-xl">
-        <div class="text-center">
-          <span class="text-slate-400 block text-[10px] uppercase tracking-wider">Spiele</span>
-          <span id="stat-games" class="text-amber-400 font-bold text-sm">0</span>
-        </div>
-        <div class="w-px h-6 bg-slate-800"></div>
-        <div class="text-center">
-          <span class="text-slate-400 block text-[10px] uppercase tracking-wider">BINGOs</span>
-          <span id="stat-wins" class="text-emerald-400 font-bold text-sm">0</span>
-        </div>
-        <div class="w-px h-6 bg-slate-800"></div>
-        <div class="text-center">
-          <span class="text-slate-400 block text-[10px] uppercase tracking-wider">Bälle</span>
-          <span id="stat-balls" class="text-indigo-400 font-bold text-sm">0 / 75</span>
-        </div>
-      </div>
-
-      <!-- Audio & Auto-Dauber Quick Toggles -->
-      <div class="flex items-center gap-2">
-        <button id="sound-btn" onclick="toggleSound()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs flex items-center gap-1.5 transition">
-          <span id="sound-icon">🔊</span> Sound: ON
-        </button>
-        <button id="autodaub-btn" onclick="toggleAutoDaub()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs flex items-center gap-1.5 transition">
-          <span id="autodaub-status" class="w-2 h-2 rounded-full bg-slate-500"></span> Auto-Dauber
-        </button>
-      </div>
+      <button onclick="openNameModal()" class="bg-indigo-800/60 hover:bg-indigo-700 p-2.5 rounded-xl border border-indigo-600/40 transition">
+        <i class="fa-solid fa-pen text-indigo-200"></i>
+      </button>
     </div>
   </header>
 
-  <!-- MAIN DASHBOARD LAYOUT -->
-  <main class="max-w-7xl mx-auto w-full flex-1 p-3 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-    
-    <!-- LEFT PANEL: CALLER CONTROL & BALL DISPLAY (5 Cols) -->
-    <section class="lg:col-span-5 flex flex-col gap-5">
-      
-      <!-- Current Ball Showcase Box -->
-      <div class="glass-panel p-6 rounded-3xl text-center relative overflow-hidden shadow-2xl border border-slate-800 flex flex-col items-center justify-center min-h-[260px]">
-        
-        <!-- Glowing background aura -->
-        <div id="ball-glow" class="absolute inset-0 bg-rose-500/10 blur-3xl rounded-full transition-all duration-500"></div>
+  <!-- Main Container -->
+  <main class="max-w-5xl mx-auto w-full my-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        <span class="text-xs font-bold tracking-widest text-slate-400 uppercase mb-2">Aktueller Ball</span>
+    <!-- Left / Caller Section -->
+    <section class="lg:col-span-1 space-y-6">
+
+      <!-- Drawn Ball Display -->
+      <div class="bg-slate-900/80 border border-indigo-500/30 p-6 rounded-2xl text-center shadow-xl flex flex-col items-center">
+        <h2 class="text-indigo-300 font-bold uppercase tracking-wider text-xs mb-3">Aktuelle Zahl</h2>
         
-        <!-- Animated Main Ball Display -->
-        <div id="ball-container" class="relative z-10 w-32 h-32 rounded-full bg-slate-900 border-4 border-slate-800 flex flex-col items-center justify-center shadow-2xl">
-          <div id="ball-letter" class="text-2xl font-black text-slate-500 leading-none">READY</div>
-          <div id="ball-number" class="text-4xl font-black text-slate-600 leading-none mt-1">--</div>
+        <div id="ball-display" class="w-28 h-28 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-400 border-4 border-amber-400 flex items-center justify-center font-game text-4xl text-white shadow-2xl my-2">
+          --
         </div>
 
-        <!-- Call Status Subtext -->
-        <div id="call-status" class="mt-4 text-xs font-semibold text-slate-400">
-          Klicke "Start" oder "Nächster Ball"
+        <p class="text-xs text-indigo-300 mt-2" id="caller-status">Warte auf Spielstart...</p>
+
+        <!-- Controls -->
+        <div class="w-full grid grid-cols-2 gap-2 mt-4">
+          <button id="btn-start" onclick="toggleCaller()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl shadow-lg transition">
+            <i class="fa-solid fa-play mr-1"></i> Start
+          </button>
+          <button id="btn-reset" onclick="resetGame()" class="bg-rose-600 hover:bg-rose-500 text-white font-bold py-2.5 px-4 rounded-xl shadow-lg transition">
+            <i class="fa-solid fa-rotate-right mr-1"></i> Neustart
+          </button>
+        </div>
+      </div>
+
+      <!-- Mode & Room Controls -->
+      <div class="bg-slate-900/80 border border-indigo-500/30 p-5 rounded-2xl shadow-xl space-y-4">
+        <h3 class="font-bold text-indigo-200 text-sm border-b border-indigo-800 pb-2"><i class="fa-solid fa-users mr-2"></i>Multiplayer Lobbys</h3>
+        
+        <div class="space-y-2">
+          <div class="flex gap-2">
+            <input type="text" id="room-code-input" placeholder="Raumcode" class="bg-indigo-950 border border-indigo-700 text-white px-3 py-2 rounded-xl text-sm uppercase font-mono w-full tracking-wider focus:outline-none focus:border-amber-400">
+            <button onclick="joinRoom()" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-xl font-bold text-sm transition">Beitreten</button>
+          </div>
+          <button onclick="createRoom()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-xl text-sm transition">
+            <i class="fa-solid fa-plus mr-1"></i> Neuen Raum erstellen
+          </button>
         </div>
 
-        <!-- Recent History Trail -->
-        <div class="mt-4 flex items-center gap-2">
-          <span class="text-[10px] uppercase font-bold text-slate-500">Letzte:</span>
-          <div id="recent-balls" class="flex gap-1.5 min-h-[28px]">
-            <!-- Recent drawn balls will be injected here -->
+        <div id="room-info" class="hidden bg-indigo-950/60 p-3 rounded-xl border border-indigo-800 text-xs space-y-1">
+          <div class="flex justify-between font-mono">
+            <span class="text-indigo-300">Raum:</span>
+            <span id="current-room-code" class="text-amber-400 font-bold">---</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-indigo-300">Spieler im Raum:</span>
+            <span id="player-count" class="font-bold">1</span>
           </div>
         </div>
       </div>
 
-      <!-- Caller Controls Panel -->
-      <div class="glass-panel p-5 rounded-3xl shadow-xl border border-slate-800 space-y-4">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-          <h2 class="font-bold text-sm text-slate-300 flex items-center gap-2">
-            <span>⚙️</span> CALLER STEUERUNG
-          </h2>
-          
-          <!-- Speed Selector -->
-          <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
-            <span class="text-slate-400 px-1 text-[10px]">Speed:</span>
-            <button onclick="setSpeed(3000)" id="speed-3" class="px-2 py-0.5 rounded-lg bg-indigo-600 font-bold text-white">3s</button>
-            <button onclick="setSpeed(2000)" id="speed-2" class="px-2 py-0.5 rounded-lg hover:bg-slate-800 text-slate-400">2s</button>
-            <button onclick="setSpeed(1000)" id="speed-1" class="px-2 py-0.5 rounded-lg hover:bg-slate-800 text-slate-400">1s</button>
-          </div>
-        </div>
-
-        <!-- Primary Control Buttons -->
-        <div class="grid grid-cols-2 gap-3">
-          <button id="toggle-auto-btn" onclick="toggleAutoCaller()" class="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl shadow-lg shadow-emerald-900/30 transition flex items-center justify-center gap-2">
-            <span id="play-icon">▶</span> <span id="play-text">Auto-Call Start</span>
-          </button>
-          <button id="draw-next-btn" onclick="drawNextBall()" class="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-900/30 transition flex items-center justify-center gap-2">
-            <span>🎲</span> Nächster Ball
-          </button>
-        </div>
-
-        <button onclick="resetGame()" class="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition">
-          🔄 Spiel Zurücksetzen / Neue Karte
-        </button>
-      </div>
-
-      <!-- Caller Board Grid (B-I-N-G-O 1-75 visualizer) -->
-      <div class="glass-panel p-4 rounded-3xl shadow-xl border border-slate-800">
-        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Zahlen-Übersicht (1-75)</h3>
-        <div id="caller-board" class="space-y-1.5 text-[10px] font-mono">
-          <!-- 5 Rows generated dynamically via JS for B, I, N, G, O -->
+      <!-- Drawn History -->
+      <div class="bg-slate-900/80 border border-indigo-500/30 p-4 rounded-2xl shadow-xl">
+        <h3 class="text-indigo-300 font-bold text-xs uppercase tracking-wider mb-2">Gezogene Zahlen (<span id="drawn-count">0</span>/75)</h3>
+        <div id="drawn-history" class="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1">
+          <!-- History pills inserted dynamically -->
         </div>
       </div>
+
     </section>
 
-    <!-- RIGHT PANEL: CARD & GAMEPLAY (7 Cols) -->
-    <section class="lg:col-span-7 flex flex-col gap-5">
-      
-      <!-- Pattern Selector & Claim Button Header -->
-      <div class="glass-panel p-4 rounded-3xl border border-slate-800 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gewinn-Muster:</label>
-          <select id="pattern-select" onchange="changePattern()" class="bg-slate-950 border border-slate-700 text-sm font-bold text-amber-400 rounded-xl px-3 py-1.5 outline-none focus:border-amber-500">
-            <option value="line">Line (Waagerecht / Senkrecht / Diagonal)</option>
-            <option value="corners">4 Ecken (Four Corners)</option>
-            <option value="x">X-Muster (Cross)</option>
-            <option value="full">Full House (Coverall)</option>
-          </select>
-        </div>
+    <!-- Center / Bingo Board Section -->
+    <section class="lg:col-span-2 space-y-4">
 
-        <!-- BINGO WIN BUTTON -->
-        <button onclick="claimBingo()" class="py-3 px-8 bg-gradient-to-r from-amber-500 via-rose-500 to-indigo-600 hover:from-amber-400 hover:to-indigo-500 text-white font-black text-lg tracking-wider rounded-2xl shadow-xl shadow-rose-900/40 hover:scale-105 active:scale-95 transition transform font-arcade flex items-center gap-2">
-          <span>⭐</span> BINGO!
-        </button>
-      </div>
-
-      <!-- BINGO CARD GRID CONTAINER -->
-      <div class="glass-panel p-4 md:p-6 rounded-3xl border border-slate-800 shadow-2xl relative">
-        
-        <!-- 5-Column Header (B-I-N-G-O) -->
+      <div class="bg-slate-900/90 border-2 border-indigo-500/40 p-4 md:p-6 rounded-3xl shadow-2xl">
+        <!-- B-I-N-G-O Header Columns -->
         <div class="grid grid-cols-5 gap-2 text-center mb-3">
-          <div class="py-2.5 rounded-2xl bg-bingo-b text-white font-black text-xl shadow-md">B</div>
-          <div class="py-2.5 rounded-2xl bg-bingo-i text-white font-black text-xl shadow-md">I</div>
-          <div class="py-2.5 rounded-2xl bg-bingo-n text-white font-black text-xl shadow-md">N</div>
-          <div class="py-2.5 rounded-2xl bg-bingo-g text-white font-black text-xl shadow-md">G</div>
-          <div class="py-2.5 rounded-2xl bg-bingo-o text-white font-black text-xl shadow-md">O</div>
+          <div class="font-game text-2xl md:text-3xl text-rose-500">B</div>
+          <div class="font-game text-2xl md:text-3xl text-amber-400">I</div>
+          <div class="font-game text-2xl md:text-3xl text-emerald-400">N</div>
+          <div class="font-game text-2xl md:text-3xl text-sky-400">G</div>
+          <div class="font-game text-2xl md:text-3xl text-purple-400">O</div>
         </div>
 
-        <!-- 5x5 Card Matrix -->
-        <div id="bingo-card" class="grid grid-cols-5 gap-2">
-          <!-- 25 Tiles generated via JS -->
+        <!-- 5x5 Card Grid -->
+        <div id="bingo-card" class="bingo-card-grid">
+          <!-- 25 Tiles Generated dynamically -->
         </div>
 
-        <!-- Footer Control / Re-Roll Card Button -->
-        <div class="mt-4 flex items-center justify-between text-xs text-slate-400">
-          <span>Klicke Zahlen auf der Karte zum Markieren!</span>
-          <button onclick="generateNewCard()" class="text-amber-400 hover:underline font-semibold flex items-center gap-1">
-            <span>🎲</span> Neue Karte Mischen
+        <!-- Bingo Button -->
+        <div class="mt-6">
+          <button onclick="claimBingo()" class="w-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:brightness-110 text-slate-950 font-game text-2xl py-4 rounded-2xl shadow-xl shadow-amber-500/20 active:scale-[0.98] transition">
+            <i class="fa-solid fa-trophy mr-2"></i> BINGO!
           </button>
         </div>
       </div>
+
     </section>
+
   </main>
 
-  <!-- CONFETTI CANVAS OVERLAY -->
-  <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
+  <!-- Name Modal -->
+  <div id="name-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-slate-900 border border-indigo-500/40 p-6 rounded-2xl max-w-md w-full shadow-2xl space-y-4">
+      <h3 class="font-game text-xl text-amber-400"><i class="fa-solid fa-user-gear mr-2"></i>Spielernamen festlegen</h3>
+      <p class="text-sm text-indigo-200">Gib deinen Namen ein, um in Multiplayer-Lobbys erkannt zu werden:</p>
+      <input type="text" id="username-input" maxlength="15" placeholder="Dein Name..." class="w-full bg-indigo-950 border border-indigo-700 text-white px-4 py-3 rounded-xl focus:outline-none focus:border-amber-400 font-bold">
+      <button onclick="saveUsername()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition">Speichern</button>
+    </div>
+  </div>
 
-  <!-- GAMEPLAY & ENGINE SCRIPT -->
   <script>
-    // ==========================================
-    // GAME STATE CONFIGURATION
-    // ==========================================
-    const state = {
-      card: [],             // 5x5 Grid matrix structure
-      drawnBalls: [],       // Array of drawn numbers (1-75)
-      remainingBalls: [],   // Un-drawn ball pool
-      daubedCells: new Set(['2,2']), // Marked cells (FREE cell 2,2 marked by default)
-      autoCallerInterval: null,
-      callerSpeed: 3000,
-      soundEnabled: true,
-      autoDaubEnabled: false,
-      pattern: 'line',       // 'line', 'corners', 'x', 'full'
-      stats: {
-        games: 0,
-        wins: 0,
-        ballsDrawn: 0
-      }
-    };
+    // Game State
+    let username = localStorage.getItem('bingo_username') || 'Player' + Math.floor(1000 + Math.random() * 9000);
+    let drawnNumbers = new Set();
+    let cardNumbers = [];
+    let daubedIndices = new Set([12]); // 12 = Center FREE tile
+    let callerInterval = null;
+    let isMultiplayer = false;
+    let roomCode = null;
 
-    const BINGO_COLUMNS = [
-      { label: 'B', min: 1, max: 15, color: 'bg-bingo-b', border: 'border-rose-500' },
-      { label: 'I', min: 16, max: 30, color: 'bg-bingo-i', border: 'border-amber-500' },
-      { label: 'N', min: 31, max: 45, color: 'bg-bingo-n', border: 'border-emerald-500' },
-      { label: 'G', min: 46, max: 60, color: 'bg-bingo-g', border: 'border-blue-500' },
-      { label: 'O', min: 61, max: 75, color: 'bg-bingo-o', border: 'border-purple-500' }
+    // Ranges for B-I-N-G-O
+    const RANGES = [
+      { min: 1, max: 15 },   // B
+      { min: 16, max: 30 },  // I
+      { min: 31, max: 45 },  // N
+      { min: 46, max: 60 },  // G
+      { min: 61, max: 75 }   // O
     ];
 
-    // ==========================================
-    // AUDIO SYNTHESIZER (Web Audio API)
-    // ==========================================
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Initialization
+    window.onload = () => {
+      document.getElementById('display-username').innerText = username;
+      generateBingoCard();
+    };
 
-    function playSound(type) {
-      if (!state.soundEnabled) return;
-      try {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
+    function openNameModal() {
+      document.getElementById('username-input').value = username;
+      document.getElementById('name-modal').classList.remove('hidden');
+    }
 
-        const now = audioCtx.currentTime;
-
-        if (type === 'click') {
-          osc.frequency.setValueAtTime(400, now);
-          osc.frequency.exponentialRampToValueAtTime(800, now + 0.05);
-          gain.gain.setValueAtTime(0.1, now);
-          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
-          osc.start(now);
-          osc.stop(now + 0.05);
-        } else if (type === 'ball') {
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(300, now);
-          osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
-          gain.gain.setValueAtTime(0.2, now);
-          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-          osc.start(now);
-          osc.stop(now + 0.15);
-        } else if (type === 'win') {
-          // Play fanfare melody
-          const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
-          notes.forEach((freq, idx) => {
-            const noteOsc = audioCtx.createOscillator();
-            const noteGain = audioCtx.createGain();
-            noteOsc.connect(noteGain);
-            noteGain.connect(audioCtx.destination);
-            
-            noteOsc.frequency.setValueAtTime(freq, now + idx * 0.12);
-            noteGain.gain.setValueAtTime(0.2, now + idx * 0.12);
-            noteGain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.12 + 0.3);
-            
-            noteOsc.start(now + idx * 0.12);
-            noteOsc.stop(now + idx * 0.12 + 0.3);
-          });
-        }
-      } catch (e) {
-        console.error("Audio error:", e);
+    function saveUsername() {
+      const val = document.getElementById('username-input').value.trim();
+      if (val) {
+        username = val;
+        localStorage.setItem('bingo_username', username);
+        document.getElementById('display-username').innerText = username;
       }
+      document.getElementById('name-modal').classList.add('hidden');
     }
 
-    // ==========================================
-    // INITIALIZATION & CARD GENERATION
-    // ==========================================
-    function initGame() {
-      initCallerBoard();
-      generateNewCard();
-      resetBallPool();
-    }
-
-    function generateNewCard() {
-      state.card = Array(5).fill(null).map(() => Array(5).fill(null));
-      state.daubedCells = new Set(['2,2']); // Reset marked cells with FREE space
-
+    // Generate balanced 5x5 Bingo Card
+    function generateBingoCard() {
+      cardNumbers = [];
+      daubedIndices = new Set([12]); // Reset with FREE center
+      
       for (let col = 0; col < 5; col++) {
-        const { min, max } = BINGO_COLUMNS[col];
-        const nums = [];
-        while (nums.length < 5) {
-          const n = Math.floor(Math.random() * (max - min + 1)) + min;
-          if (!nums.includes(n)) nums.push(n);
+        const pool = [];
+        for (let i = RANGES[col].min; i <= RANGES[col].max; i++) pool.push(i);
+        
+        // Shuffle column pool
+        for (let i = pool.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [pool[i], pool[j]] = [pool[j], pool[i]];
         }
-        nums.sort((a, b) => a - b);
+
+        // Take 5 numbers for this column
         for (let row = 0; row < 5; row++) {
-          state.card[row][col] = nums[row];
+          const index = row * 5 + col;
+          if (index === 12) {
+            cardNumbers[index] = 'FREE';
+          } else {
+            cardNumbers[index] = pool[row];
+          }
         }
       }
-
-      // Middle cell FREE space
-      state.card[2][2] = 'FREE';
 
       renderCard();
     }
 
     function renderCard() {
-      const grid = document.getElementById('bingo-card');
-      grid.innerHTML = '';
+      const cardEl = document.getElementById('bingo-card');
+      cardEl.innerHTML = '';
 
-      for (let r = 0; r < 5; r++) {
-        for (let c = 0; c < 5; c++) {
-          const val = state.card[r][c];
-          const isFree = (r === 2 && c === 2);
-          const cellKey = `${r},${c}`;
-          const isDaubed = state.daubedCells.has(cellKey);
+      cardNumbers.forEach((num, idx) => {
+        const btn = document.createElement('button');
+        const isFree = num === 'FREE';
+        const isDaubed = daubedIndices.has(idx);
 
-          const btn = document.createElement('button');
-          btn.onclick = () => handleCellClick(r, c);
-          btn.className = `
-            h-14 sm:h-16 md:h-20 rounded-2xl font-black text-base sm:text-xl md:text-2xl flex flex-col items-center justify-center
-            border-2 transition transform active:scale-95 shadow-md relative overflow-hidden
-            ${isDaubed ? 'daubed' : 'bg-slate-900 border-slate-800 text-slate-200 hover:border-slate-600 hover:bg-slate-800/80'}
-          `;
+        btn.className = `h-16 md:h-20 rounded-2xl font-game text-lg md:text-2xl transition flex items-center justify-center border-2 ${
+          isFree 
+            ? 'bg-amber-500/20 border-amber-400 text-amber-300' 
+            : 'bg-indigo-950/70 border-indigo-700/50 hover:border-indigo-400 text-white'
+        } ${isDaubed ? 'tile-daubed border-rose-400' : ''}`;
 
-          if (isFree) {
-            btn.innerHTML = `<span class="text-xs sm:text-sm font-arcade text-amber-300">FREE</span>`;
-          } else {
-            btn.innerHTML = `<span>${val}</span>`;
-          }
-
-          grid.appendChild(btn);
-        }
-      }
-    }
-
-    // Initialize Left-side 1-75 Caller Grid
-    function initCallerBoard() {
-      const board = document.getElementById('caller-board');
-      board.innerHTML = '';
-
-      BINGO_COLUMNS.forEach(col => {
-        const row = document.createElement('div');
-        row.className = 'flex items-center gap-1.5';
-        
-        const label = document.createElement('div');
-        label.className = `w-5 h-5 rounded-md ${col.color} text-white font-bold flex items-center justify-center shrink-0`;
-        label.innerText = col.label;
-        row.appendChild(label);
-
-        const numsContainer = document.createElement('div');
-        numsContainer.className = 'flex-1 grid grid-cols-15 gap-1';
-
-        for (let i = col.min; i <= col.max; i++) {
-          const numCell = document.createElement('div');
-          numCell.id = `caller-num-${i}`;
-          numCell.className = 'h-5 rounded bg-slate-900 border border-slate-800 text-slate-500 flex items-center justify-center font-bold text-[9px] transition';
-          numCell.innerText = i;
-          numsContainer.appendChild(numCell);
-        }
-
-        row.appendChild(numsContainer);
-        board.appendChild(row);
+        btn.innerText = num;
+        btn.onclick = () => toggleTile(idx, num);
+        cardEl.appendChild(btn);
       });
     }
 
-    // Reset All Balls
-    function resetBallPool() {
-      stopAutoCaller();
-      state.drawnBalls = [];
-      state.remainingBalls = Array.from({ length: 75 }, (_, i) => i + 1);
-      
-      // Clear visual caller board
-      for (let i = 1; i <= 75; i++) {
-        const cell = document.getElementById(`caller-num-${i}`);
-        if (cell) {
-          cell.className = 'h-5 rounded bg-slate-900 border border-slate-800 text-slate-500 flex items-center justify-center font-bold text-[9px] transition';
-        }
-      }
+    function toggleTile(idx, num) {
+      if (num === 'FREE') return;
 
-      // Reset Ball Display
-      document.getElementById('ball-letter').innerText = 'READY';
-      document.getElementById('ball-number').innerText = '--';
-      document.getElementById('ball-container').className = 'relative z-10 w-32 h-32 rounded-full bg-slate-900 border-4 border-slate-800 flex flex-col items-center justify-center shadow-2xl';
-      document.getElementById('call-status').innerText = 'Klicke "Start" oder "Nächster Ball"';
-      document.getElementById('recent-balls').innerHTML = '';
-
-      state.stats.ballsDrawn = 0;
-      updateStats();
-    }
-
-    function resetGame() {
-      state.stats.games++;
-      resetBallPool();
-      generateNewCard();
-    }
-
-    // ==========================================
-    // BALL DRAWING ENGINE
-    // ==========================================
-    function drawNextBall() {
-      if (state.remainingBalls.length === 0) {
-        stopAutoCaller();
-        document.getElementById('call-status').innerText = 'Alle 75 Bälle wurden gezogen!';
-        return;
-      }
-
-      // Random pick from remaining pool
-      const idx = Math.floor(Math.random() * state.remainingBalls.length);
-      const num = state.remainingBalls.splice(idx, 1)[0];
-      state.drawnBalls.push(num);
-
-      state.stats.ballsDrawn++;
-      updateStats();
-
-      // Determine B-I-N-G-O letter & color category
-      const colInfo = BINGO_COLUMNS.find(c => num >= c.min && num <= c.max);
-
-      // Sound & Ball Display animation
-      playSound('ball');
-      updateBallDisplay(colInfo.label, num, colInfo);
-      highlightCallerBoard(num, colInfo);
-
-      // Auto-Dauber logic
-      if (state.autoDaubEnabled) {
-        autoDaubNumber(num);
-      }
-    }
-
-    function updateBallDisplay(letter, number, colInfo) {
-      const container = document.getElementById('ball-container');
-      const letterEl = document.getElementById('ball-letter');
-      const numberEl = document.getElementById('ball-number');
-      const glowEl = document.getElementById('ball-glow');
-
-      // Trigger pop/spin CSS animation
-      container.classList.remove('ball-animate');
-      void container.offsetWidth; // force reflow
-      container.classList.add('ball-animate');
-
-      letterEl.innerText = letter;
-      numberEl.innerText = number;
-
-      // Color Theme according to B-I-N-G-O category
-      container.className = `relative z-10 w-32 h-32 rounded-full ${colInfo.color} border-4 border-white text-white flex flex-col items-center justify-center shadow-2xl ball-animate`;
-      glowEl.className = `absolute inset-0 ${colInfo.color} blur-3xl opacity-40 rounded-full transition-all duration-500`;
-
-      // Add to recent history trail
-      const recent = document.getElementById('recent-balls');
-      const ballChip = document.createElement('div');
-      ballChip.className = `w-7 h-7 rounded-full ${colInfo.color} text-white font-bold text-[10px] flex items-center justify-center shadow animate-popIn`;
-      ballChip.innerText = `${letter}${number}`;
-      recent.prepend(ballChip);
-      if (recent.children.length > 5) recent.removeChild(recent.lastChild);
-    }
-
-    function highlightCallerBoard(num, colInfo) {
-      const cell = document.getElementById(`caller-num-${num}`);
-      if (cell) {
-        cell.className = `h-5 rounded ${colInfo.color} text-white font-bold flex items-center justify-center text-[9px] shadow-sm animate-pulse`;
-      }
-    }
-
-    // ==========================================
-    // AUTO-CALLER TIMING CONTROLS
-    // ==========================================
-    function toggleAutoCaller() {
-      if (state.autoCallerInterval) {
-        stopAutoCaller();
+      if (daubedIndices.has(idx)) {
+        daubedIndices.delete(idx);
       } else {
-        startAutoCaller();
-      }
-    }
-
-    function startAutoCaller() {
-      if (state.remainingBalls.length === 0) return;
-      drawNextBall();
-      state.autoCallerInterval = setInterval(drawNextBall, state.callerSpeed);
-      
-      document.getElementById('play-icon').innerText = '⏸';
-      document.getElementById('play-text').innerText = 'Pause';
-      document.getElementById('toggle-auto-btn').classList.replace('bg-emerald-600', 'bg-amber-600');
-      document.getElementById('call-status').innerText = 'Automatische Ziehung läuft...';
-    }
-
-    function stopAutoCaller() {
-      if (state.autoCallerInterval) {
-        clearInterval(state.autoCallerInterval);
-        state.autoCallerInterval = null;
-      }
-      document.getElementById('play-icon').innerText = '▶';
-      document.getElementById('play-text').innerText = 'Auto-Call Start';
-      const btn = document.getElementById('toggle-auto-btn');
-      if (btn) btn.classList.replace('bg-amber-600', 'bg-emerald-600');
-      document.getElementById('call-status').innerText = 'Pausiert';
-    }
-
-    function setSpeed(ms) {
-      state.callerSpeed = ms;
-      ['1', '2', '3'].forEach(s => {
-        const b = document.getElementById(`speed-${s}`);
-        b.className = (s == ms / 1000) ? 'px-2 py-0.5 rounded-lg bg-indigo-600 font-bold text-white' : 'px-2 py-0.5 rounded-lg hover:bg-slate-800 text-slate-400';
-      });
-
-      if (state.autoCallerInterval) {
-        stopAutoCaller();
-        startAutoCaller();
-      }
-    }
-
-    // ==========================================
-    // PLAYER DAUBING & WIN VERIFICATION
-    // ==========================================
-    function handleCellClick(r, c) {
-      if (r === 2 && c === 2) return; // Free cell always marked
-      const cellKey = `${r},${c}`;
-
-      if (state.daubedCells.has(cellKey)) {
-        state.daubedCells.delete(cellKey);
-      } else {
-        state.daubedCells.add(cellKey);
-        playSound('click');
+        daubedIndices.add(idx);
       }
       renderCard();
     }
 
-    function autoDaubNumber(num) {
-      for (let r = 0; r < 5; r++) {
-        for (let c = 0; c < 5; c++) {
-          if (state.card[r][c] === num) {
-            state.daubedCells.add(`${r},${c}`);
-            renderCard();
-            return;
-          }
-        }
-      }
-    }
-
-    function toggleAutoDaub() {
-      state.autoDaubEnabled = !state.autoDaubEnabled;
-      const status = document.getElementById('autodaub-status');
-      const btn = document.getElementById('autodaub-btn');
-      
-      if (state.autoDaubEnabled) {
-        status.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
-        btn.classList.add('border-emerald-500/50', 'text-emerald-400');
+    // Caller Logic
+    function toggleCaller() {
+      if (callerInterval) {
+        clearInterval(callerInterval);
+        callerInterval = null;
+        document.getElementById('btn-start').innerHTML = '<i class="fa-solid fa-play mr-1"></i> Weiter';
+        document.getElementById('caller-status').innerText = 'Pausiert';
       } else {
-        status.className = 'w-2 h-2 rounded-full bg-slate-500';
-        btn.classList.remove('border-emerald-500/50', 'text-emerald-400');
+        callerInterval = setInterval(drawBall, 3000);
+        drawBall();
+        document.getElementById('btn-start').innerHTML = '<i class="fa-solid fa-pause mr-1"></i> Pause';
+        document.getElementById('caller-status').innerText = 'Zahlen werden gezogen...';
       }
     }
 
-    function changePattern() {
-      state.pattern = document.getElementById('pattern-select').value;
+    function drawBall() {
+      if (drawnNumbers.size >= 75) {
+        clearInterval(callerInterval);
+        alert('Alle Zahlen wurden gezogen!');
+        return;
+      }
+
+      let ball;
+      do {
+        ball = Math.floor(Math.random() * 75) + 1;
+      } while (drawnNumbers.has(ball));
+
+      drawnNumbers.add(ball);
+
+      // UI Updates
+      const ballDisplay = document.getElementById('ball-display');
+      ballDisplay.innerText = getBallLabel(ball);
+      ballDisplay.classList.remove('ball-drawn');
+      void ballDisplay.offsetWidth; // Trigger reflow
+      ballDisplay.classList.add('ball-drawn');
+
+      document.getElementById('drawn-count').innerText = drawnNumbers.size;
+
+      // History
+      const historyEl = document.getElementById('drawn-history');
+      const pill = document.createElement('span');
+      pill.className = 'bg-indigo-950 border border-indigo-700 px-2 py-1 rounded-lg text-xs font-mono font-bold text-amber-300';
+      pill.innerText = getBallLabel(ball);
+      historyEl.prepend(pill);
     }
 
-    // Validate Selected Pattern
+    function getBallLabel(num) {
+      if (num <= 15) return 'B' + num;
+      if (num <= 30) return 'I' + num;
+      if (num <= 45) return 'N' + num;
+      if (num <= 60) return 'G' + num;
+      return 'O' + num;
+    }
+
+    // STRICT BINGO VALIDATION (Prevents cheating)
     function claimBingo() {
-      const isWin = checkWinPattern(state.pattern);
-
-      if (isWin) {
-        state.stats.wins++;
-        updateStats();
-        stopAutoCaller();
-        playSound('win');
-        triggerConfetti();
-        alert('🎉 BINGO! Du hast gewonnen!');
-      } else {
-        playSound('click');
-        alert('❌ Noch kein gültiges Bingo für das gewählte Muster! Überprüfe deine Markierungen.');
-      }
-    }
-
-    function checkWinPattern(pattern) {
-      const isDaubed = (r, c) => state.daubedCells.has(`${r},${c}`);
-
-      // 1. LINE PATTERN (Horizontal, Vertical, or Diagonal)
-      if (pattern === 'line') {
-        // Rows
-        for (let r = 0; r < 5; r++) {
-          if ([0,1,2,3,4].every(c => isDaubed(r, c))) return true;
-        }
-        // Columns
-        for (let c = 0; c < 5; c++) {
-          if ([0,1,2,3,4].every(r => isDaubed(r, c))) return true;
-        }
+      const winningLines = [
+        // Horizontal
+        [0,1,2,3,4], [5,6,7,8,9], [10,11,12,13,14], [15,16,17,18,19], [20,21,22,23,24],
+        // Vertical
+        [0,5,10,15,20], [1,6,11,16,21], [2,7,12,17,22], [3,8,13,18,23], [4,9,14,19,24],
         // Diagonals
-        if ([0,1,2,3,4].every(i => isDaubed(i, i))) return true;
-        if ([0,1,2,3,4].every(i => isDaubed(i, 4 - i))) return true;
-      }
+        [0,6,12,18,24], [4,8,12,16,20]
+      ];
 
-      // 2. FOUR CORNERS PATTERN
-      if (pattern === 'corners') {
-        return isDaubed(0,0) && isDaubed(0,4) && isDaubed(4,0) && isDaubed(4,4);
-      }
+      let hasValidBingo = false;
 
-      // 3. X PATTERN
-      if (pattern === 'x') {
-        const diag1 = [0,1,2,3,4].every(i => isDaubed(i, i));
-        const diag2 = [0,1,2,3,4].every(i => isDaubed(i, 4 - i));
-        return diag1 && diag2;
-      }
-
-      // 4. FULL HOUSE / COVERALL PATTERN
-      if (pattern === 'full') {
-        for (let r = 0; r < 5; r++) {
-          for (let c = 0; c < 5; c++) {
-            if (!isDaubed(r, c)) return false;
-          }
-        }
-        return true;
-      }
-
-      return false;
-    }
-
-    function toggleSound() {
-      state.soundEnabled = !state.soundEnabled;
-      document.getElementById('sound-icon').innerText = state.soundEnabled ? '🔊' : '🔇';
-      document.getElementById('sound-btn').innerText = `${state.soundEnabled ? '🔊 Sound: ON' : '🔇 Sound: OFF'}`;
-    }
-
-    function updateStats() {
-      document.getElementById('stat-games').innerText = state.stats.games;
-      document.getElementById('stat-wins').innerText = state.stats.wins;
-      document.getElementById('stat-balls').innerText = `${state.stats.ballsDrawn} / 75`;
-    }
-
-    // ==========================================
-    // CONFETTI CELEBRATION ENGINE
-    // ==========================================
-    function triggerConfetti() {
-      const canvas = document.getElementById('confetti-canvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-
-      const particles = Array.from({ length: 120 }, () => ({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height - canvas.height,
-        size: Math.random() * 8 + 4,
-        color: ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'][Math.floor(Math.random() * 6)],
-        vy: Math.random() * 4 + 3,
-        vx: Math.random() * 2 - 1,
-        rot: Math.random() * 360
-      }));
-
-      let frames = 0;
-      function animate() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        particles.forEach(p => {
-          p.y += p.vy;
-          p.x += p.vx;
-          p.rot += 4;
-          ctx.save();
-          ctx.translate(p.x, p.y);
-          ctx.rotate((p.rot * Math.PI) / 180);
-          ctx.fillStyle = p.color;
-          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
-          ctx.restore();
+      for (let line of winningLines) {
+        const isLineComplete = line.every(idx => {
+          if (idx === 12) return true; // FREE Space
+          const num = cardNumbers[idx];
+          // VALIDATION: Tile must be daubed AND number must be in drawnNumbers!
+          return daubedIndices.has(idx) && drawnNumbers.has(num);
         });
 
-        frames++;
-        if (frames < 180) {
-          requestAnimationFrame(animate);
-        } else {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (isLineComplete) {
+          hasValidBingo = true;
+          break;
         }
       }
-      animate();
+
+      if (hasValidBingo) {
+        if (callerInterval) clearInterval(callerInterval);
+        confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+        alert(`🎉 BINGO! Herzlichen Glückwunsch, ${username}! Du hast gewonnen!`);
+      } else {
+        alert('❌ Kein gültiges Bingo! Stellt sicher, dass nur tatsächlich gezogene Zahlen markiert sind.');
+      }
     }
 
-    // Start App
-    window.onload = initGame;
+    function resetGame() {
+      if (callerInterval) clearInterval(callerInterval);
+      callerInterval = null;
+      drawnNumbers.clear();
+      document.getElementById('drawn-history').innerHTML = '';
+      document.getElementById('ball-display').innerText = '--';
+      document.getElementById('drawn-count').innerText = '0';
+      document.getElementById('btn-start').innerHTML = '<i class="fa-solid fa-play mr-1"></i> Start';
+      document.getElementById('caller-status').innerText = 'Warte auf Spielstart...';
+      generateBingoCard();
+    }
+
+    // Multiplayer Helpers
+    function createRoom() {
+      roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+      joinRoomCode(roomCode);
+    }
+
+    function joinRoom() {
+      const code = document.getElementById('room-code-input').value.trim().toUpperCase();
+      if (code) joinRoomCode(code);
+    }
+
+    function joinRoomCode(code) {
+      isMultiplayer = true;
+      roomCode = code;
+      document.getElementById('room-info').classList.remove('hidden');
+      document.getElementById('current-room-code').innerText = code;
+      document.getElementById('mode-indicator').innerHTML = '<i class="fa-solid fa-users text-amber-400 mr-1"></i> Multiplayer Raum';
+      resetGame();
+      alert(`Raum ${code} beigetreten!`);
+    }
   </script>
 </body>
 </html>
